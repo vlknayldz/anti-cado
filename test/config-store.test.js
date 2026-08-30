@@ -38,3 +38,32 @@ test("eski grup ayar dosyasını yeni sohbet modeline dönüştürür", async (c
   assert.equal(config.rules[0].repeatValue, 1);
   assert.equal(config.rules[0].repeatIntervalSeconds, 1);
 });
+
+test("yanıt aralığı alanı hiç olmayan eski çoklu yanıt kuralını okuyabilir", async (context) => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "anticado-config-test-"));
+  context.after(() => fs.rm(directory, { recursive: true, force: true }));
+  await fs.writeFile(
+    path.join(directory, "config.json"),
+    JSON.stringify({
+      version: 2,
+      rules: [
+        {
+          id: "missing-interval",
+          conversationType: "group",
+          conversationName: "Eski Grup",
+          senderUsername: "hedef",
+          messageContent: "Merhaba",
+          contentType: "text",
+          copiesPerTrigger: 2,
+          deliveryMode: "normal",
+          repeatValue: 1,
+          enabled: true,
+        },
+      ],
+    }),
+  );
+
+  const config = await new ConfigStore(directory).load();
+  assert.equal(config.rules.length, 1);
+  assert.equal(config.rules[0].repeatIntervalSeconds, 1);
+});

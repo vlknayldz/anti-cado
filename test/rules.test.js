@@ -168,3 +168,10 @@ test("X özel mesajında alıntılı yanıt biçimini reddeder", () => {
     /normal mesaj/,
   );
 });
+
+test("bağlantı bile olmayan gönderi içeriğini Türkçe hatayla reddeder", () => {
+  assert.throws(
+    () => createRule(baseRule({ messageContent: "bu bir bağlantı değil" })),
+    /Gönderi bağlantısı/,
+  );
+});

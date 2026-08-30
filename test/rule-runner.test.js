@@ -59,3 +59,54 @@ test("durdurulan kural sonradan yeniden başlatılabilir", async () => {
 
   assert.deepEqual(calls, ["message-1", "message-2"]);
 });
+
+test("başarısız gönderim kuralın mesaj kotasını tüketmez", async () => {
+  const calls = [];
+  let shouldFail = true;
+  const runner = new RuleRunner(
+    async (_rule, event) => {
+      if (shouldFail) {
+        shouldFail = false;
+        throw new Error("gönderim hatası");
+      }
+      calls.push(event.marker);
+    },
+    { log: () => {} },
+  );
+  const rule = {
+    id: "rule-fail",
+    enabled: true,
+    repeatMode: REPEAT_MODES.COUNT,
+    repeatCount: 1,
+  };
+
+  runner.handle(rule, { marker: "message-1" });
+  await runner.states.get(rule.id).queue;
+  runner.handle(rule, { marker: "message-2" });
+  await runner.states.get(rule.id).queue;
+
+  assert.deepEqual(calls, ["message-2"]);
+});
+
+test("başarısız gönderim aynı kaynak mesajı yeniden denemez", async () => {
+  const attempts = [];
+  const runner = new RuleRunner(
+    async (_rule, event) => {
+      attempts.push(event.marker);
+      throw new Error("gönderim hatası");
+    },
+    { log: () => {} },
+  );
+  const rule = {
+    id: "rule-no-retry",
+    enabled: true,
+    repeatMode: REPEAT_MODES.UNTIL_STOPPED,
+  };
+
+  runner.handle(rule, { marker: "message-1" });
+  await runner.states.get(rule.id).queue;
+  runner.handle(rule, { marker: "message-1" });
+  await runner.states.get(rule.id).queue;
+
+  assert.deepEqual(attempts, ["message-1"]);
+});

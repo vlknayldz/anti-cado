@@ -38,7 +38,12 @@ function normalizeUsername(value) {
 }
 
 function normalizePostUrl(value, platform) {
-  const url = new URL(String(value || "").trim());
+  let url;
+  try {
+    url = new URL(String(value || "").trim());
+  } catch {
+    throw new Error("Gönderi bağlantısı geçerli bir adres olmalı (https://... biçiminde).");
+  }
   if (!/^https?:$/.test(url.protocol)) {
     throw new Error("Gönderi bağlantısı http veya https olmalı.");
   }

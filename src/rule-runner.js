@@ -38,7 +38,14 @@ class RuleRunner {
         if (this.stopped || state.generation !== generation) return;
         await this.sendCycle(rule, event);
       })
-      .catch((error) => this.log(`Kural çalıştırılamadı: ${error.message}`));
+      .catch((error) => {
+        // Başarısız gönderim kotayı tüketmesin: sonraki yeni mesajlar işlenebilsin.
+        // seenEvents korunur; aynı kaynak mesaj yeniden denenmez (çift gönderim riski).
+        if (!this.stopped && state.generation === generation) {
+          state.processedCount = Math.max(0, state.processedCount - 1);
+        }
+        this.log(`Kural çalıştırılamadı: ${error.message}`);
+      });
   }
 
   stopRule(ruleId) {

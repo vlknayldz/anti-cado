@@ -42,7 +42,7 @@ class ConfigStore {
                 ...rule,
                 repeatIntervalSeconds:
                   Number(rule.copiesPerTrigger) > 1 &&
-                  Number(rule.repeatIntervalSeconds) < 1
+                  !(Number(rule.repeatIntervalSeconds) >= 1)
                     ? 1
                     : rule.repeatIntervalSeconds,
               }),
