@@ -23,7 +23,7 @@ Uygulama açıldığında tam ekran panel gelir. Kural satırları ve alt düğm
 - `K`: seçili çalışan kuralı durdur
 - `D`: çalışan tüm kuralları durdur
 - `R`: kural listesini yenile
-- `M`: klasik kural ekleme/düzenleme menüsünü aç
+- `M`: klasik kural ekleme/düzenleme menüsünü aç (menüde `ESC` panele geri döner)
 - `Q` veya `ESC`: panelden çık
 
 Başlatma, durdurma ve paneli çalışan kurallarla kapatma işlemleri fareyle kullanılabilen **Evet/Hayır** penceresiyle ayrıca onaylanır.

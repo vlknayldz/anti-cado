@@ -217,11 +217,13 @@ async function selectRule(prompts, rules, action) {
   }
 }
 
-async function interactiveMenu() {
-  const prompts = new Prompts();
+async function interactiveMenu(options = {}) {
+  const menuStore = options.store || store;
+  const prompts = options.prompts || new Prompts();
+  const dashboardReturn = options.dashboardReturn === true;
   try {
     while (true) {
-      const config = await store.load();
+      const config = await menuStore.load();
       stdout.write("\n=== Anti-Çado ===\n");
       const ruleFooter = [
         "--- Kural Özeti ---",
@@ -245,10 +247,10 @@ async function interactiveMenu() {
           ],
           0,
           ruleFooter,
-          "çıkış",
+          dashboardReturn ? "panele dön" : "çıkış",
         );
       } catch (error) {
-        if (isBackNavigation(error)) return;
+        if (isBackNavigation(error)) return dashboardReturn ? "dashboard" : "exit";
         throw error;
       }
 
@@ -270,7 +272,7 @@ async function interactiveMenu() {
           const rule = await prompts.ruleWizard();
           if (rule) {
             config.rules.push(rule);
-            await store.save(config);
+            await menuStore.save(config);
             stdout.write("Kural kaydedildi.\n");
           }
         }
@@ -281,7 +283,7 @@ async function interactiveMenu() {
             const updated = await prompts.ruleEditor(config.rules[index]);
             if (updated) {
               config.rules[index] = updated;
-              await store.save(config);
+              await menuStore.save(config);
               stdout.write("Kural güncellendi.\n");
             }
           }
@@ -290,7 +292,7 @@ async function interactiveMenu() {
           const index = await selectRule(prompts, config.rules, "Açma/kapatma");
           if (index >= 0) {
             config.rules[index].enabled = !config.rules[index].enabled;
-            await store.save(config);
+            await menuStore.save(config);
             stdout.write(`Kural ${config.rules[index].enabled ? "açıldı" : "kapatıldı"}.\n`);
           }
         }
@@ -298,12 +300,12 @@ async function interactiveMenu() {
           const index = await selectRule(prompts, config.rules, "Silme");
           if (index >= 0 && (await prompts.confirm("Bu kural silinsin mi?", false))) {
             config.rules.splice(index, 1);
-            await store.save(config);
+            await menuStore.save(config);
             stdout.write("Kural silindi.\n");
           }
         }
         if (choice === 6) await login(prompts);
-        if (choice === 7) return;
+        if (choice === 7) return "exit";
       } catch (error) {
         if (isBackNavigation(error)) {
           stdout.write("Ana menüye dönüldü.\n");
@@ -323,9 +325,12 @@ async function main() {
   const config = await store.load();
   if (command === "menu") {
     const { runDashboard } = require("./tui");
-    const result = await runDashboard(store);
-    if (result === "classic") return interactiveMenu();
-    return;
+    while (true) {
+      const result = await runDashboard(store);
+      if (result !== "classic") return;
+      const menuResult = await interactiveMenu({ dashboardReturn: true });
+      if (menuResult !== "dashboard") return;
+    }
   }
   if (command === "classic") return interactiveMenu();
   if (command === "start") return startAutomation(config);
@@ -349,4 +354,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { startAutomation };
+module.exports = { interactiveMenu, startAutomation };

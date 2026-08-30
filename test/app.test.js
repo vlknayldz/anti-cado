@@ -69,3 +69,39 @@ test("startAutomation dışarıdan verilen panel denetleyicisiyle çalışır ve
 
   assert.deepEqual(calls, [["start", ["r1"]], ["stopAll"]]);
 });
+
+test("klasik menüde ESC panele dönüş sonucu verir", async () => {
+  const { interactiveMenu } = require("../src/app");
+  const { BackNavigation } = require("../src/prompts");
+  const prompts = {
+    async choose() {
+      throw new BackNavigation();
+    },
+    close() {},
+  };
+  const store = {
+    async load() {
+      return { version: 3, rules: [] };
+    },
+  };
+
+  const result = await interactiveMenu({ prompts, store, dashboardReturn: true });
+  assert.equal(result, "dashboard");
+});
+
+test("klasik menüde Çıkış seçimi uygulamadan çıkış sonucu verir", async () => {
+  const { interactiveMenu } = require("../src/app");
+  const prompts = {
+    async choose() {
+      return 7;
+    },
+    close() {},
+  };
+  const store = {
+    async load() {
+      return { version: 3, rules: [] };
+    },
+  };
+
+  assert.equal(await interactiveMenu({ prompts, store }), "exit");
+});
