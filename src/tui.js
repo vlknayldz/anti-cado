@@ -11,60 +11,6 @@ const {
 
 const FENER_YELLOW = "yellow";
 const FENER_NAVY = "blue";
-const EMBLEM_WIDTH = 18;
-const EMBLEM_PIXEL_HEIGHT = 16;
-
-function logoDimensions() {
-  return {
-    boxHeight: EMBLEM_PIXEL_HEIGHT / 2 + 3,
-    boxWidth: EMBLEM_WIDTH + 2,
-    cellHeight: EMBLEM_PIXEL_HEIGHT / 2,
-    cellWidth: EMBLEM_WIDTH,
-    logTop: EMBLEM_PIXEL_HEIGHT / 2 + 4,
-  };
-}
-
-function cliEmblemPixel(x, y, width, pixelHeight) {
-  const centerX = (width - 1) / 2;
-  const centerY = (pixelHeight - 1) / 2;
-  const dx = x - centerX;
-  const dy = y - centerY;
-  const distance = Math.sqrt(dx ** 2 + dy ** 2);
-  const radius = Math.min(width, pixelHeight) / 2 - 0.6;
-
-  // Gerçek amblem katmanları: lacivert zemin > beyaz halka > kırmızı disk
-  // > yeşil palamut dalı > sarı-lacivert kalp.
-  if (distance > radius) return FENER_NAVY;
-  if (distance > radius - 2.2) return "white";
-
-  const stem = Math.abs(dx) < 0.55 && dy > -4.4 && dy < -1.6;
-  const leftLeaf = ((dx + 1.6) / 1.3) ** 2 + ((dy + 3.9) / 0.85) ** 2 < 1;
-  const rightLeaf = ((dx - 1.6) / 1.3) ** 2 + ((dy + 3.5) / 0.85) ** 2 < 1;
-  if (stem || leftLeaf || rightLeaf) return "green";
-
-  // Kalp: (u² + v² - 1)³ - u² · v³ < 0 klasik kalp eğrisi; v yukarı bakar.
-  const u = dx / 3.0;
-  const v = (1.0 - dy) / 2.7;
-  const heart = (u ** 2 + v ** 2 - 1) ** 3 - u ** 2 * v ** 3 < 0;
-  if (heart) return dx < 0 ? FENER_YELLOW : FENER_NAVY;
-
-  return "red";
-}
-
-function renderCliEmblem(width = EMBLEM_WIDTH, pixelHeight = EMBLEM_PIXEL_HEIGHT) {
-  const rows = [];
-  for (let y = 0; y < pixelHeight; y += 2) {
-    let line = "";
-    for (let x = 0; x < width; x += 1) {
-      const top = cliEmblemPixel(x, y, width, pixelHeight);
-      const bottom = cliEmblemPixel(x, Math.min(y + 1, pixelHeight - 1), width, pixelHeight);
-      line += `{${top}-fg}{${bottom}-bg}▀{/}`;
-    }
-    rows.push(line);
-  }
-  return rows.join("\n");
-}
-
 function safeText(value) {
   return String(value || "").replace(/[{}]/g, "");
 }
@@ -179,9 +125,18 @@ async function runDashboard(store, options = {}) {
   const exitPromise = new Promise((resolve) => {
     resolveExit = resolve;
   });
+  // Windows'ta TERM tanımsızken blessed 'windows-ansi' seçer ve fare
+  // bildirimini hiç açmaz (terminfo'sunda key_mouse yok). Paketle gelen
+  // xterm-256color terminfo'su fare protokolünü açar; Windows Terminal
+  // ve modern conhost bu protokolü destekler.
+  const terminal =
+    options.terminal ||
+    process.env.TERM ||
+    (process.platform === "win32" ? "xterm-256color" : undefined);
   const screen = blessed.screen({
     input: options.input,
     output: options.output,
+    terminal,
     smartCSR: true,
     fullUnicode: true,
     title: "Anti-Çado",
@@ -198,42 +153,22 @@ async function runDashboard(store, options = {}) {
   const logs = ["Panel hazır. Bir kuralı fareyle tıklayarak seçebilirsiniz."];
   let busy = false;
   let closing = false;
-  let logoLayout = logoDimensions();
-  logs.push("Fenerbahçe amblemi CLI karakterleriyle çiziliyor.");
 
   const headerBox = blessed.box({
     parent: screen,
     top: 0,
     left: 1,
-    width: Math.max(20, screen.width - logoLayout.boxWidth - 3),
+    right: 1,
     height: 4,
     tags: true,
     content: "{bold}{yellow-fg}Anti-Çado{/}\n{gray-fg}Instagram ve X özel mesaj otomasyonu{/}",
-  });
-
-  const logoContent = `${renderCliEmblem()}\n{center}{white-fg}{bold}1907{/}{/center}`;
-  const logoBox = blessed.box({
-    parent: screen,
-    top: 0,
-    right: 1,
-    width: logoLayout.boxWidth,
-    height: logoLayout.boxHeight,
-    border: "line",
-    label: " FENERBAHÇE ",
-    tags: true,
-    content: logoContent,
-    style: {
-      bg: FENER_NAVY,
-      border: { fg: FENER_YELLOW },
-      label: { fg: FENER_YELLOW, bold: true },
-    },
   });
 
   const statusBox = blessed.box({
     parent: screen,
     top: 4,
     left: 1,
-    right: logoLayout.boxWidth + 2,
+    right: 1,
     height: 3,
     tags: true,
     border: "line",
@@ -242,8 +177,8 @@ async function runDashboard(store, options = {}) {
     parent: screen,
     top: 7,
     left: 1,
-    right: logoLayout.boxWidth + 2,
-    height: Math.max(5, logoLayout.logTop - 7),
+    right: 1,
+    height: 6,
     label: " Kurallar — tıkla/SPACE: seç ",
     border: "line",
     tags: true,
@@ -260,7 +195,7 @@ async function runDashboard(store, options = {}) {
   });
   const logBox = blessed.log({
     parent: screen,
-    top: logoLayout.logTop,
+    top: 13,
     left: 1,
     right: 1,
     bottom: 5,
@@ -289,17 +224,6 @@ async function runDashboard(store, options = {}) {
     logBox.setContent(logs.join("\n"));
     logBox.setScrollPerc(100);
     screen.render();
-  }
-
-  function applyLogoLayout() {
-    logoLayout = logoDimensions();
-    headerBox.width = Math.max(20, screen.width - logoLayout.boxWidth - 3);
-    logoBox.width = logoLayout.boxWidth;
-    logoBox.height = logoLayout.boxHeight;
-    statusBox.right = logoLayout.boxWidth + 2;
-    rulesList.right = logoLayout.boxWidth + 2;
-    rulesList.height = Math.max(5, logoLayout.logTop - 7);
-    logBox.top = logoLayout.logTop;
   }
 
   function refreshView() {
@@ -429,10 +353,7 @@ async function runDashboard(store, options = {}) {
   screen.key(["q", "escape", "C-c"], () => requestFinish("exit"));
   controller.on("log", addLog);
   controller.on("status", refreshView);
-  screen.on("resize", () => {
-    applyLogoLayout();
-    refreshView();
-  });
+  screen.on("resize", refreshView);
 
   refreshView();
   rulesList.focus();
@@ -446,8 +367,4 @@ async function runDashboard(store, options = {}) {
   return exitPromise;
 }
 
-module.exports = {
-  logoDimensions,
-  renderCliEmblem,
-  runDashboard,
-};
+module.exports = { runDashboard };

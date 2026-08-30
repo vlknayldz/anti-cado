@@ -16,7 +16,7 @@ npm start
 
 ## Kullanıcı akışı
 
-Uygulama açıldığında tam ekran panel gelir. Sağ üst köşede küçük, sabit boyutlu ve tamamen CLI karakterleriyle çizilmiş Fenerbahçe amblemi bulunur. Amblem gerçek kulüp amblemine sadık katmanlar taşır: beyaz dış halka, kırmızı zemin, ortada sarı-lacivert kalp, kalpten yükselen yeşil palamut dalı ve `1907` detayı. JPEG veya terminal görüntü protokolü kullanılmaz. Kural satırları ve alt düğmeler fareyle tıklanabilir; klavye kısayolları da her zaman kullanılabilir:
+Uygulama açıldığında tam ekran panel gelir. Kural satırları ve alt düğmeler fareyle tıklanabilir; klavye kısayolları da her zaman kullanılabilir:
 
 - Kural satırına tıklama veya `SPACE`: kuralı seç/seçimi kaldır
 - `B`: seçili kuralı başlat
