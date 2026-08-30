@@ -141,19 +141,19 @@ class Prompts {
 
   async choose(title, options, defaultIndex = 0, footerLines = [], escapeLabel = "geri") {
     while (true) {
-      stdout.write(`\n${title}\n`);
-      options.forEach((option, index) => stdout.write(`${index + 1}) ${option}\n`));
+      this.output.write(`\n${title}\n`);
+      options.forEach((option, index) => this.output.write(`${index + 1}) ${option}\n`));
       if (footerLines.length) {
-        stdout.write("\n");
-        footerLines.forEach((line) => stdout.write(`${line}\n`));
+        this.output.write("\n");
+        footerLines.forEach((line) => this.output.write(`${line}\n`));
       }
-      stdout.write(`\nESC = ${escapeLabel}\n`);
+      this.output.write(`\nESC = ${escapeLabel}\n`);
       const answer = (await this.question(`Seçim [${defaultIndex + 1}]: `)).trim();
       const selected = answer === "" ? defaultIndex : Number(answer) - 1;
       if (Number.isInteger(selected) && selected >= 0 && selected < options.length) {
         return selected;
       }
-      stdout.write("Geçerli bir seçenek girin.\n");
+      this.output.write("Geçerli bir seçenek girin.\n");
     }
   }
 
@@ -191,7 +191,7 @@ class Prompts {
       const raw = await this.text(label, String(defaultValue));
       const value = Number(raw);
       if (Number.isInteger(value) && value >= minimum && value <= maximum) return value;
-      stdout.write(`${label} ${minimum}–${maximum} arasında tam sayı olmalı.\n`);
+      this.output.write(`${label} ${minimum}–${maximum} arasında tam sayı olmalı.\n`);
     }
   }
 
@@ -205,7 +205,7 @@ class Prompts {
   async ruleWizard(existing = {}) {
     while (true) {
       try {
-        stdout.write("\n--- Otomasyon kuralı ---\nESC = kaydetmeden geri dön\n");
+        this.output.write("\n--- Otomasyon kuralı ---\nESC = kaydetmeden geri dön\n");
         const hasExistingRule = Boolean(
           existing.id || existing.conversationName || existing.groupName,
         );
@@ -276,10 +276,10 @@ class Prompts {
           deliveryMode =
             deliveryIndex === 0 ? DELIVERY_MODES.REPLY : DELIVERY_MODES.NORMAL;
         } else {
-          stdout.write("X/Twitter yanıtı özel sohbete normal mesaj olarak gönderilecek.\n");
+          this.output.write("X/Twitter yanıtı özel sohbete normal mesaj olarak gönderilecek.\n");
         }
 
-        stdout.write(
+        this.output.write(
           `\nİşlenecek mesaj sayısı: 1 = yalnızca ilk yeni mesaj, ${UNLIMITED_REPEAT_VALUE} = sınırsız yeni mesaj.\n`,
         );
         const repeatValue = await this.integer(
@@ -303,15 +303,15 @@ class Prompts {
           repeatIntervalSeconds,
         });
 
-        stdout.write(`\n${ruleSummary(rule)}\n\n`);
+        this.output.write(`\n${ruleSummary(rule)}\n\n`);
         if (await this.confirm("Bu kural kaydedilsin mi?")) return rule;
         if (!(await this.confirm("Bilgileri yeniden girmek ister misiniz?"))) return null;
       } catch (error) {
         if (isBackNavigation(error)) {
-          stdout.write("Kural değişikliği iptal edildi.\n");
+          this.output.write("Kural değişikliği iptal edildi.\n");
           return null;
         }
-        stdout.write(`Hata: ${error.message}\n`);
+        this.output.write(`Hata: ${error.message}\n`);
       }
     }
   }
@@ -319,22 +319,22 @@ class Prompts {
   async ruleEditor(existing) {
     let draft = createRule(existing);
     while (true) {
-      stdout.write("\n--- Kural Alanları ---\n");
-      stdout.write(`1) Platform           : ${draft.platform === PLATFORMS.X ? "X/Twitter" : "Instagram"}\n`);
-      stdout.write(
+      this.output.write("\n--- Kural Alanları ---\n");
+      this.output.write(`1) Platform           : ${draft.platform === PLATFORMS.X ? "X/Twitter" : "Instagram"}\n`);
+      this.output.write(
         `2) Sohbet türü       : ${draft.conversationType === CONVERSATION_TYPES.DIRECT ? "Birebir sohbet" : "Grup sohbeti"}\n`,
       );
-      stdout.write(`3) Sohbet adı        : ${draft.conversationName}\n`);
-      stdout.write(`4) Hedef kullanıcı   : @${draft.senderUsername}\n`);
-      stdout.write(`5) İçerik türü       : ${draft.contentType === CONTENT_TYPES.TEXT ? "Metin" : "Gönderi"}\n`);
-      stdout.write(`6) Gönderilecek içerik: ${draft.messageContent}\n`);
-      stdout.write(`7) Mesaj başına yanıt: ${draft.copiesPerTrigger}\n`);
-      stdout.write(
+      this.output.write(`3) Sohbet adı        : ${draft.conversationName}\n`);
+      this.output.write(`4) Hedef kullanıcı   : @${draft.senderUsername}\n`);
+      this.output.write(`5) İçerik türü       : ${draft.contentType === CONTENT_TYPES.TEXT ? "Metin" : "Gönderi"}\n`);
+      this.output.write(`6) Gönderilecek içerik: ${draft.messageContent}\n`);
+      this.output.write(`7) Mesaj başına yanıt: ${draft.copiesPerTrigger}\n`);
+      this.output.write(
         `8) Gönderim biçimi   : ${draft.deliveryMode === DELIVERY_MODES.REPLY ? "Mesajına bağlı yanıt" : "Normal sohbet mesajı"}\n`,
       );
-      stdout.write(`9) İşlenecek mesaj   : ${draft.repeatValue}${draft.repeatValue === UNLIMITED_REPEAT_VALUE ? " (sınırsız)" : ""}\n`);
-      stdout.write(`10) Yanıtlar arası   : ${draft.repeatIntervalSeconds} saniye\n`);
-      stdout.write("\nS = değişiklikleri kaydet\nESC = kaydetmeden geri dön\n");
+      this.output.write(`9) İşlenecek mesaj   : ${draft.repeatValue}${draft.repeatValue === UNLIMITED_REPEAT_VALUE ? " (sınırsız)" : ""}\n`);
+      this.output.write(`10) Yanıtlar arası   : ${draft.repeatIntervalSeconds} saniye\n`);
+      this.output.write("\nS = değişiklikleri kaydet\nESC = kaydetmeden geri dön\n");
 
       let command;
       try {
@@ -343,7 +343,7 @@ class Prompts {
           .toLocaleLowerCase("tr-TR");
       } catch (error) {
         if (isBackNavigation(error)) {
-          stdout.write("Değişiklikler kaydedilmedi.\n");
+          this.output.write("Değişiklikler kaydedilmedi.\n");
           return null;
         }
         throw error;
@@ -352,17 +352,17 @@ class Prompts {
       if (command === "s") {
         try {
           const saved = createRule(draft);
-          stdout.write(`\n${ruleSummary(saved)}\nKural kaydedildi.\n`);
+          this.output.write(`\n${ruleSummary(saved)}\nKural kaydedildi.\n`);
           return saved;
         } catch (error) {
-          stdout.write(`Kural kaydedilemedi: ${error.message}\n`);
+          this.output.write(`Kural kaydedilemedi: ${error.message}\n`);
           continue;
         }
       }
 
       const field = Number(command);
       if (!Number.isInteger(field) || field < 1 || field > 10) {
-        stdout.write("1–10 arasında alan numarası veya kaydetmek için S girin.\n");
+        this.output.write("1–10 arasında alan numarası veya kaydetmek için S girin.\n");
         continue;
       }
 
@@ -423,7 +423,7 @@ class Prompts {
         }
         if (field === 8) {
           if (draft.platform === PLATFORMS.X) {
-            stdout.write("X/Twitter özel mesajlarında gönderim biçimi normal mesajdır.\n");
+            this.output.write("X/Twitter özel mesajlarında gönderim biçimi normal mesajdır.\n");
           } else {
             const selected = await this.choose(
               "Gönderim biçimi:",
@@ -438,7 +438,7 @@ class Prompts {
           }
         }
         if (field === 9) {
-          stdout.write(
+          this.output.write(
             `1 = yalnızca ilk yeni mesaj, ${UNLIMITED_REPEAT_VALUE} = sınırsız yeni mesaj.\n`,
           );
           draft.repeatValue = await this.integer(
@@ -450,7 +450,7 @@ class Prompts {
         }
         if (field === 10) {
           if (draft.copiesPerTrigger === 1) {
-            stdout.write("Yanıt adedi 1 iken yanıtlar arası süre kullanılmaz.\n");
+            this.output.write("Yanıt adedi 1 iken yanıtlar arası süre kullanılmaz.\n");
           } else {
             draft.repeatIntervalSeconds = await this.integer(
               "Yeni yanıtlar arası süre (saniye)",
@@ -460,7 +460,7 @@ class Prompts {
         }
       } catch (error) {
         if (isBackNavigation(error)) {
-          stdout.write("Alan değiştirilmedi; kural alanlarına dönüldü.\n");
+          this.output.write("Alan değiştirilmedi; kural alanlarına dönüldü.\n");
           continue;
         }
         throw error;

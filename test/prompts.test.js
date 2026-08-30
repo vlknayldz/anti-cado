@@ -67,3 +67,14 @@ test("virgülle birden fazla kural seçilebilir", async () => {
   assert.deepEqual(await prompts.multiSelect("Kurallar", ["Bir", "İki", "Üç"]), [0, 2]);
   prompts.close();
 });
+
+test("choose menüsü yapıcıya verilen çıktı akışına yazar", async () => {
+  const fixture = ttyFixture();
+  const prompts = new Prompts(fixture.input, fixture.output);
+  prompts.question = async () => "2";
+  const selected = await prompts.choose("Hangi platform?", ["Instagram", "X"]);
+  assert.equal(selected, 1);
+  assert.match(fixture.outputText(), /Hangi platform\?/);
+  assert.match(fixture.outputText(), /1\) Instagram/);
+  prompts.close();
+});

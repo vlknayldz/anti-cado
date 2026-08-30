@@ -2,10 +2,10 @@
 "use strict";
 
 const { stdout } = require("node:process");
+const { AutomationController } = require("./automation-controller");
 const { ConfigStore } = require("./config-store");
 const { InstagramSession } = require("./instagram");
 const { Prompts, isBackNavigation } = require("./prompts");
-const { RuleRunner } = require("./rule-runner");
 const {
   PLATFORMS,
   compactRuleSummary,
@@ -108,49 +108,37 @@ function printRuntimeRuleStatus(rules, activeRuleIds) {
   });
 }
 
-async function startAutomation(config, stopPrompts = null, initialRules = null) {
+async function startAutomation(config, stopPrompts = null, initialRules = null, options = {}) {
   const enabledRules = config.rules.filter((rule) => rule.enabled);
   if (!enabledRules.length) throw new Error("Çalıştırılacak açık kural yok.");
   const startingRules = (initialRules || enabledRules).filter((rule) => rule.enabled);
   if (!startingRules.length) throw new Error("Başlatılacak kural seçilmedi.");
 
-  const session = new InstagramSession(store.profileDirectory, {
-    log: (message) => stdout.write(`${message}\n`),
-  });
-  const runner = new RuleRunner(
-    (rule, event) => session.queueSend(rule, event),
-    { log: (message) => stdout.write(`${message}\n`) },
-  );
-  const activeRuleIds = new Set();
+  // Panelle aynı motor: başlat/durdur/yoklama kablolaması tek yerde yaşasın.
+  const controller = options.controller || new AutomationController(store.profileDirectory);
+  const onLog = (message) => stdout.write(`${message}\n`);
+  controller.on("log", onLog);
 
   let shuttingDown = false;
   const shutdown = async () => {
     if (shuttingDown) return;
     shuttingDown = true;
     stdout.write("\nOtomasyon durduruluyor...\n");
-    runner.stopAll();
-    await session.close();
+    await controller.stopAll();
   };
   process.once("SIGINT", shutdown);
   process.once("SIGTERM", shutdown);
 
   try {
-    startingRules.forEach((rule) => {
-      runner.resetRule(rule.id);
-      session.activateRule(rule.id);
-    });
-    await session.openConversations(startingRules);
-    startingRules.forEach((rule) => activeRuleIds.add(rule.id));
-    session.startPolling((rule, event) => {
-      if (!activeRuleIds.has(rule.id)) return;
-      stdout.write(
-        `Yeni mesaj: [${event.conversationName}] @${event.username} — ${event.preview || "[medya]"}\n`,
-      );
-      runner.handle(rule, event);
-    });
+    const results = await controller.startRules(startingRules);
+    if (results.length && !results.some((result) => result.ok)) {
+      throw results[0].error || new Error("Hiçbir kural başlatılamadı.");
+    }
+
     if (stopPrompts) {
-      stdout.write(`\nOtomasyon çalışıyor: ${activeRuleIds.size} kural aktif.\n`);
+      stdout.write(`\nOtomasyon çalışıyor: ${controller.status().activeRuleIds.size} kural aktif.\n`);
       while (!shuttingDown) {
+        const activeRuleIds = controller.status().activeRuleIds;
         printRuntimeRuleStatus(enabledRules, activeRuleIds);
         const command = await stopPrompts.waitForAutomationCommand();
 
@@ -165,18 +153,8 @@ async function startAutomation(config, stopPrompts = null, initialRules = null) 
             stdout.write("Kural başlatma iptal edildi.\n");
             continue;
           }
-          for (const rule of selected) {
-            try {
-              await session.addRules([rule]);
-              runner.resetRule(rule.id);
-              session.activateRule(rule.id);
-              activeRuleIds.add(rule.id);
-              stdout.write(`Başlatıldı: ${ruleChoiceLabel(rule)}\n`);
-            } catch (error) {
-              stdout.write(`Kural başlatılamadı: ${ruleChoiceLabel(rule)} — ${error.message}\n`);
-            }
-          }
-          stdout.write(`Aktif kural sayısı: ${activeRuleIds.size}\n`);
+          await controller.startRules(selected);
+          stdout.write(`Aktif kural sayısı: ${controller.status().activeRuleIds.size}\n`);
           continue;
         }
 
@@ -191,13 +169,8 @@ async function startAutomation(config, stopPrompts = null, initialRules = null) 
             stdout.write("Kural durdurma iptal edildi.\n");
             continue;
           }
-          selected.forEach((rule) => {
-            activeRuleIds.delete(rule.id);
-            runner.stopRule(rule.id);
-            session.cancelRule(rule.id);
-            stdout.write(`Durduruldu: ${ruleChoiceLabel(rule)}\n`);
-          });
-          stdout.write(`Aktif kural sayısı: ${activeRuleIds.size}\n`);
+          controller.stopRules(selected);
+          stdout.write(`Aktif kural sayısı: ${controller.status().activeRuleIds.size}\n`);
           continue;
         }
 
@@ -213,7 +186,6 @@ async function startAutomation(config, stopPrompts = null, initialRules = null) 
         if (confirmed) break;
         stdout.write("Durdurma iptal edildi; otomasyon çalışmaya devam ediyor.\n");
       }
-      await shutdown();
     } else {
       stdout.write("\nOtomasyon çalışıyor. Durdurmak için Ctrl+C tuşlarına basın.\n");
       await new Promise((resolve) => {
@@ -222,8 +194,8 @@ async function startAutomation(config, stopPrompts = null, initialRules = null) 
       });
     }
   } finally {
-    runner.stopAll();
-    await session.close();
+    await shutdown();
+    controller.removeListener("log", onLog);
     process.removeListener("SIGINT", shutdown);
     process.removeListener("SIGTERM", shutdown);
   }
@@ -370,7 +342,11 @@ async function main() {
   process.exitCode = 1;
 }
 
-main().catch((error) => {
-  process.stderr.write(`\nHata: ${error.message}\n`);
-  process.exitCode = 1;
-});
+if (require.main === module) {
+  main().catch((error) => {
+    process.stderr.write(`\nHata: ${error.message}\n`);
+    process.exitCode = 1;
+  });
+}
+
+module.exports = { startAutomation };
