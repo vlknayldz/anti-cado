@@ -11,8 +11,8 @@ const {
 
 const FENER_YELLOW = "yellow";
 const FENER_NAVY = "blue";
-const EMBLEM_WIDTH = 22;
-const EMBLEM_PIXEL_HEIGHT = 18;
+const EMBLEM_WIDTH = 18;
+const EMBLEM_PIXEL_HEIGHT = 16;
 
 function logoDimensions() {
   return {
@@ -25,7 +25,6 @@ function logoDimensions() {
 }
 
 function cliEmblemPixel(x, y, width, pixelHeight) {
-  const stripe = Math.floor(x / 3) % 2 === 0 ? FENER_NAVY : FENER_YELLOW;
   const centerX = (width - 1) / 2;
   const centerY = (pixelHeight - 1) / 2;
   const dx = x - centerX;
@@ -33,24 +32,23 @@ function cliEmblemPixel(x, y, width, pixelHeight) {
   const distance = Math.sqrt(dx ** 2 + dy ** 2);
   const radius = Math.min(width, pixelHeight) / 2 - 0.6;
 
-  if (distance > radius) return stripe;
-  if (distance > radius - 0.8) return "black";
-  if (distance > radius - 2.7) {
-    const textMark = Math.abs(dy) > radius - 2.2 && (x + y) % 3 === 0;
-    return textMark ? "black" : "white";
-  }
-  if (distance > radius - 3.8) return "red";
+  // Gerçek amblem katmanları: lacivert zemin > beyaz halka > kırmızı disk
+  // > yeşil palamut dalı > sarı-lacivert kalp.
+  if (distance > radius) return FENER_NAVY;
+  if (distance > radius - 2.2) return "white";
 
-  const innerRadius = radius - 3.8;
-  const navyBand = dy > -3.4 && dy < -1.2 && Math.abs(dx) < innerRadius;
-  if (navyBand) return FENER_NAVY;
+  const stem = Math.abs(dx) < 0.55 && dy > -4.4 && dy < -1.6;
+  const leftLeaf = ((dx + 1.6) / 1.3) ** 2 + ((dy + 3.9) / 0.85) ** 2 < 1;
+  const rightLeaf = ((dx - 1.6) / 1.3) ** 2 + ((dy + 3.5) / 0.85) ** 2 < 1;
+  if (stem || leftLeaf || rightLeaf) return "green";
 
-  const stem = Math.abs(dx) < 0.65 && dy > -2.8 && dy < 4.7;
-  const leftLeaf = ((dx + 1.6) / 2.1) ** 2 + ((dy - 0.2) / 1.25) ** 2 < 1;
-  const rightLeaf = ((dx - 1.6) / 2.1) ** 2 + ((dy - 1.3) / 1.25) ** 2 < 1;
-  const crown = (dx / 1.25) ** 2 + ((dy + 2.2) / 1.8) ** 2 < 1;
-  if (stem || leftLeaf || rightLeaf || crown) return "green";
-  return FENER_YELLOW;
+  // Kalp: (u² + v² - 1)³ - u² · v³ < 0 klasik kalp eğrisi; v yukarı bakar.
+  const u = dx / 3.0;
+  const v = (1.0 - dy) / 2.7;
+  const heart = (u ** 2 + v ** 2 - 1) ** 3 - u ** 2 * v ** 3 < 0;
+  if (heart) return dx < 0 ? FENER_YELLOW : FENER_NAVY;
+
+  return "red";
 }
 
 function renderCliEmblem(width = EMBLEM_WIDTH, pixelHeight = EMBLEM_PIXEL_HEIGHT) {
