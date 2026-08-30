@@ -51,8 +51,10 @@ test("farklı sohbet kuralları ayrı sayfalarda, sonradan eklenen aynı sohbet 
   const pages = [];
   const opened = [];
   const watched = [];
-  const makePage = () => ({
+  const makePage = (url = "about:blank") => ({
+    url: () => url,
     goto: async () => {},
+    close: async () => {},
     isClosed: () => false,
   });
   pages.push(makePage());
@@ -137,4 +139,104 @@ test("çalışırken durdurulan kuralın kalan mesaj kopyaları gönderilmez", a
   await session.sendCycle(rule, { marker: "incoming" });
 
   assert.deepEqual(sent, ["Yanıt"]);
+});
+
+function fakeSessionWithPages(pages) {
+  const session = new InstagramSession("unused", { log: () => {} });
+  session.launch = async () => {
+    session.context = {
+      pages: () => pages,
+      newPage: async () => {
+        const page = {
+          url: () => "about:blank",
+          goto: async () => {},
+          close: async () => {
+            page.closed = true;
+          },
+          isClosed: () => false,
+        };
+        pages.push(page);
+        return page;
+      },
+    };
+  };
+  session.assertLoggedIn = async () => {};
+  session.installWatcher = async () => {};
+  return session;
+}
+
+function directRule(id, conversationName) {
+  return createRule({
+    id,
+    platform: PLATFORMS.INSTAGRAM,
+    conversationType: CONVERSATION_TYPES.DIRECT,
+    conversationName,
+    senderUsername: "hedef",
+    contentType: CONTENT_TYPES.TEXT,
+    messageContent: "Yanıt",
+    copiesPerTrigger: 1,
+    deliveryMode: DELIVERY_MODES.NORMAL,
+    repeatValue: 1,
+  });
+}
+
+test("kullanıcının gezindiği sekmeyi gasp etmez, yeni sekme açar", async () => {
+  const userPage = {
+    url: () => "https://www.instagram.com/explore/",
+    goto: async () => {},
+    close: async () => {},
+    isClosed: () => false,
+  };
+  const pages = [userPage];
+  const session = fakeSessionWithPages(pages);
+  session.openConversationByName = async () => {};
+
+  const rule = directRule("no-steal", "Sohbet A");
+  await session.addRules([rule]);
+
+  const conversationPage = session.conversations.get(conversationKey(rule)).page;
+  assert.notEqual(conversationPage, userPage);
+  assert.equal(pages.length, 2);
+});
+
+test("sohbet açılamazsa uygulamanın açtığı sekme kapatılır", async () => {
+  const userPage = {
+    url: () => "https://www.instagram.com/explore/",
+    goto: async () => {},
+    close: async () => {},
+    isClosed: () => false,
+  };
+  const pages = [userPage];
+  const session = fakeSessionWithPages(pages);
+  session.openConversationByName = async () => {
+    throw new Error("Sohbet bulunamadı.");
+  };
+
+  await assert.rejects(
+    () => session.addRules([directRule("orphan", "Sohbet B")]),
+    /Sohbet bulunamadı/,
+  );
+  assert.equal(session.conversations.size, 0);
+  assert.equal(pages[1].closed, true);
+});
+
+test("izleme döngüsü yavaş sayfada üst üste binmez", async () => {
+  const session = new InstagramSession("unused", { log: () => {} });
+  let inFlight = 0;
+  let maxInFlight = 0;
+  let calls = 0;
+  session.pollOnce = async () => {
+    calls += 1;
+    inFlight += 1;
+    maxInFlight = Math.max(maxInFlight, inFlight);
+    await new Promise((resolve) => setTimeout(resolve, 40));
+    inFlight -= 1;
+  };
+
+  session.startPolling(() => {}, 10);
+  await new Promise((resolve) => setTimeout(resolve, 160));
+  await session.close();
+
+  assert.ok(calls >= 2, `en az iki tarama beklenirdi, ${calls} oldu`);
+  assert.equal(maxInFlight, 1);
 });

@@ -100,6 +100,7 @@ class InstagramSession {
     this.context = null;
     this.conversations = new Map();
     this.pollTimer = null;
+    this.pollingActive = false;
     this.onMessage = null;
     this.sendQueues = new Map();
     this.cancelledRuleIds = new Set();
@@ -199,15 +200,35 @@ class InstagramSession {
       const usedPages = new Set(
         [...this.conversations.values()].map((conversation) => conversation.page),
       );
-      const page =
-        this.context.pages().find((candidate) => !usedPages.has(candidate)) ||
-        (await this.context.newPage());
-      await page.goto(entry.platform === PLATFORMS.X ? X_MESSAGES : INSTAGRAM_INBOX, {
-        waitUntil: "domcontentloaded",
+      // Kullanıcının gezindiği sekme gasp edilmesin: yalnızca boş/yeni sekme
+      // yeniden kullanılır, aksi halde uygulama kendi sekmesini açar.
+      const blankPage = this.context.pages().find((candidate) => {
+        if (usedPages.has(candidate) || typeof candidate.url !== "function") return false;
+        const url = candidate.url();
+        return (
+          url === "" ||
+          url === "about:blank" ||
+          url.startsWith("chrome://newtab") ||
+          url.startsWith("chrome://new-tab-page")
+        );
       });
-      await this.assertLoggedIn(page, entry.platform);
-      await this.openConversationByName(page, entry);
-      await this.installWatcher(page, entry.rules);
+      const page = blankPage || (await this.context.newPage());
+      try {
+        await page.goto(entry.platform === PLATFORMS.X ? X_MESSAGES : INSTAGRAM_INBOX, {
+          waitUntil: "domcontentloaded",
+        });
+        await this.assertLoggedIn(page, entry.platform);
+        await this.openConversationByName(page, entry);
+        await this.installWatcher(page, entry.rules);
+      } catch (error) {
+        // Uygulamanın açtığı sekme sahipsiz kalmasın; kullanıcı sekmesine dokunulmaz.
+        if (!blankPage) {
+          try {
+            await page.close();
+          } catch {}
+        }
+        throw error;
+      }
       this.conversations.set(key, { page, ...entry });
       const typeLabel =
         entry.conversationType === CONVERSATION_TYPES.DIRECT ? "Birebir" : "Grup";
@@ -517,14 +538,19 @@ class InstagramSession {
 
   startPolling(onMessage, intervalMs = 750) {
     this.onMessage = onMessage;
+    this.pollingActive = true;
+    // setInterval yerine zincirli setTimeout: yavaş bir tarama bitmeden
+    // yenisi başlamaz, çağrılar üst üste binemez.
     const tick = async () => {
+      if (!this.pollingActive) return;
       try {
         await this.pollOnce();
       } catch (error) {
         this.log(`İzleme uyarısı: ${error.message}`);
       }
+      if (this.pollingActive) this.pollTimer = setTimeout(tick, intervalMs);
     };
-    this.pollTimer = setInterval(tick, intervalMs);
+    this.pollTimer = setTimeout(tick, intervalMs);
   }
 
   queueSend(rule, event) {
@@ -621,7 +647,8 @@ class InstagramSession {
   }
 
   async close() {
-    if (this.pollTimer) clearInterval(this.pollTimer);
+    this.pollingActive = false;
+    if (this.pollTimer) clearTimeout(this.pollTimer);
     this.pollTimer = null;
     await this.browser?.close();
     await stopBrowserProcess(this.browserProcess);
