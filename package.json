@@ -1,0 +1,23 @@
+{
+  "name": "anticado",
+  "version": "0.6.5",
+  "description": "Instagram ve X özel mesajları için fare destekli Anti-Çado terminal paneli",
+  "private": true,
+  "type": "commonjs",
+  "bin": {
+    "anticado": "src/app.js"
+  },
+  "scripts": {
+    "start": "node src/app.js",
+    "check": "node --check src/app.js && node --check src/automation-controller.js && node --check src/instagram.js && node --check src/prompts.js && node --check src/rule-runner.js && node --check src/tui.js",
+    "test": "node --test",
+    "package:win": "pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/build-portable.ps1"
+  },
+  "dependencies": {
+    "neo-blessed": "0.2.0",
+    "playwright-core": "1.55.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
