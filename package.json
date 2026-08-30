@@ -1,6 +1,6 @@
 {
   "name": "anticado",
-  "version": "0.6.5",
+  "version": "0.7.0",
   "description": "Instagram ve X özel mesajları için fare destekli Anti-Çado terminal paneli",
   "private": true,
   "type": "commonjs",
