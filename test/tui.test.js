@@ -104,3 +104,50 @@ test("TERM tanımsızken bile fare bildirimi xterm protokolüyle açılır", asy
     if (savedTerm !== undefined) process.env.TERM = savedTerm;
   }
 });
+
+test("panel kapandıktan sonra stdin'de çift tuş çözücü kalmaz", async () => {
+  const readline = require("node:readline");
+  const input = new PassThrough();
+  input.isTTY = true;
+  input.setRawMode = () => {};
+  const output = new PassThrough();
+  output.isTTY = true;
+  output.columns = 100;
+  output.rows = 30;
+  output.on("data", () => {});
+
+  class FakeController extends EventEmitter {
+    status() {
+      return { activeRuleIds: new Set() };
+    }
+
+    async stopAll() {}
+  }
+
+  const store = {
+    profileDirectory: "profile",
+    async load() {
+      return { rules: [] };
+    },
+  };
+
+  await runDashboard(store, {
+    controller: new FakeController(),
+    input,
+    output,
+    onReady({ close }) {
+      close();
+    },
+  });
+
+  readline.emitKeypressEvents(input);
+  let keypressCount = 0;
+  input.on("keypress", () => {
+    keypressCount += 1;
+  });
+  input.resume(); // gerçek akışta readline arayüzü girişi kendisi devam ettirir
+  input.write("7");
+  await new Promise((resolve) => setTimeout(resolve, 30));
+
+  assert.equal(keypressCount, 1, "tek tuş tek keypress üretmeli; panel artık dinleyici bırakmamalı");
+});

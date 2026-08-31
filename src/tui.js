@@ -129,6 +129,25 @@ async function runDashboard(store, options = {}) {
   // bildirimini hiç açmaz (terminfo'sunda key_mouse yok). Paketle gelen
   // xterm-256color terminfo'su fare protokolünü açar; Windows Terminal
   // ve modern conhost bu protokolü destekler.
+  // blessed, girişe kendi tuş çözücüsünü ekler ve destroy() bunu geri
+  // sökmez; kalan çözücü sonraki readline menülerinde her tuşu iki kez
+  // işletir (7 -> 77). Panel açılmadan önce dinleyicilerin fotoğrafını
+  // alıp kapanışta panelin eklediklerini kaldırıyoruz.
+  const inputStream = options.input || process.stdin;
+  const trackedEvents = ["data", "keypress", "newListener"];
+  const preexistingListeners = new Map(
+    trackedEvents.map((event) => [event, new Set(inputStream.listeners(event))]),
+  );
+  const removeLeftoverListeners = () => {
+    for (const event of trackedEvents) {
+      for (const listener of inputStream.listeners(event)) {
+        if (!preexistingListeners.get(event).has(listener)) {
+          inputStream.removeListener(event, listener);
+        }
+      }
+    }
+  };
+
   const terminal =
     options.terminal ||
     process.env.TERM ||
@@ -320,6 +339,7 @@ async function runDashboard(store, options = {}) {
     closing = true;
     controller.stopAll().finally(() => {
       screen.destroy();
+      removeLeftoverListeners();
       options.onExit?.(result);
       resolveExit(result);
     });
